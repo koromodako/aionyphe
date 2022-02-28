@@ -2,6 +2,10 @@
 """
 import typing as t
 from .client import AsyncAPIResultIterator
+from .logging import get_logger
+
+
+LOGGER = get_logger('helper')
 
 
 async def iter_pages(
@@ -22,6 +26,7 @@ async def iter_pages(
             # yield result
             yield meta, result
         # last page reached ?
+        LOGGER.info("fetched page %d of %d", current, last)
         if current >= last:
             break
         # goto next page
