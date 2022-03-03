@@ -10,6 +10,7 @@ from aiohttp.client import (
     ClientTimeout,
     ClientResponse,
     ClientResponseError,
+    ClientProxyConnectionError,
 )
 from .enum import OnypheCategory, OnypheSummaryType
 from .logging import get_logger
@@ -71,6 +72,9 @@ async def _handle_resp(
         async with response as resp:
             async for meta, result in parse_resp(resp):
                 yield meta, result
+    except ClientProxyConnectionError as exc:
+        LOGGER.critical("failed to connect to proxy!")
+        raise OnypheAPIError from exc
     except ClientResponseError as exc:
         if exc.status == 429:
             LOGGER.critical("rate limiting triggered!")
@@ -97,7 +101,7 @@ class OnypheAPIClientSession(ClientSession):
         proxy_host: t.Optional[str] = None,
         proxy_port: t.Optional[int] = None,
         proxy_scheme: t.Optional[str] = None,
-        proxy_headers: t.Optional[t.Mapping] = None,
+        proxy_headers: t.Optional[t.Mapping[str, str]] = None,
         proxy_username: t.Optional[str] = None,
         proxy_password: t.Optional[str] = None,
         ssl: t.Optional[SSLContext] = None,
@@ -118,13 +122,22 @@ class OnypheAPIClientSession(ClientSession):
         if ssl:
             self.__request_kwargs['ssl'] = ssl
         if proxy_scheme:
-            self.__request_kwargs['proxy'] = URL.build(
+            proxy = URL.build(
                 scheme=proxy_scheme,
                 host=proxy_host,
                 port=proxy_port,
                 user=proxy_username,
                 password=proxy_password,
             )
+            LOGGER.info(
+                "client using proxy: %s",
+                URL.build(
+                    scheme=proxy_scheme,
+                    host=proxy_host,
+                    port=proxy_port,
+                ),
+            )
+            self.__request_kwargs['proxy'] = proxy
             self.__request_kwargs['proxy_headers'] = proxy_headers
         self.__headers = {
             'User-Agent': f'aionyphe/{VERSION}',

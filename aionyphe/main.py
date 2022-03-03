@@ -1,6 +1,16 @@
 """aionyphe command line tool
 """
-from asyncio import run
+# import and setup uvloop when installed
+# (linux and darwin platforms only)
+try:
+    from uvloop import EventLoopPolicy
+    from asyncio import set_event_loop_policy
+
+    set_event_loop_policy(EventLoopPolicy())
+except ImportError:
+    pass
+# cross-platform imports
+from asyncio import run, sleep
 from pathlib import Path
 from getpass import getpass
 from argparse import ArgumentParser
@@ -202,6 +212,10 @@ async def _main(args):
     )
     async with OnypheAPIClientSession(**kwargs) as client:
         await args.afunc(client, args)
+    # https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
+    # wait 500ms to ensure underlying connection is closed before closing the
+    # event loop
+    await sleep(0.500)
 
 
 def _setup_global_arguments(parser):
