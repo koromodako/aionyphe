@@ -148,7 +148,7 @@ aionyphe search --first 2 --last 4 'category:datascan domain:google.com'
 
 ### Configuration File (optional)
 
-`aionyphe` client can load configuration from an file depending on the operating
+`aionyphe` client can load configuration from a file depending on the operating
 system being used.
 
 | OS      | Configuration file              |
@@ -157,7 +157,7 @@ system being used.
 | Darwin  | `/Users/{username}/.aionyphe`   |
 | Windows | `C:\Users\{username}\.aionyphe` |
 
-This configuration file shall contains a JSON object with optional key/value
+This configuration file shall contain a JSON object with optional key/value
 pairs taken from this table :
 
 | Key              | Value |
@@ -177,4 +177,4 @@ pairs taken from this table :
 | `sock_read`      | Maximal number of seconds for reading a portion of data from a peer |
 | `sock_connect`   | Maximal number of seconds for connecting to a peer for a new connection |
 
-Note that command line arguments override configuration values.
+Note: command line arguments override configuration file values.
