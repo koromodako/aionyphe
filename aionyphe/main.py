@@ -10,11 +10,11 @@ try:
 except ImportError:
     pass
 # cross-platform imports
+from json import loads, dumps
 from asyncio import run, sleep
 from pathlib import Path
 from getpass import getpass
 from argparse import ArgumentParser
-from orjson import loads, dumps
 from . import (
     OnypheAPIClientSession,
     OnypheSummaryType,
@@ -79,12 +79,12 @@ def parse_headers(arg):
 
 async def _print_results(agen):
     async for _, result in agen:
-        print(dumps(result).decode())
+        print(dumps(result))
 
 
 async def _myip_cmd(client, _args):
     async for meta, _ in client.user():
-        print(dumps({'myip': meta['myip']}).decode())
+        print(dumps({'myip': meta['myip']}))
 
 
 async def _user_cmd(client, _args):
