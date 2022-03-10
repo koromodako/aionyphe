@@ -2,9 +2,9 @@
 """
 import typing as t
 from ssl import SSLContext
+from json import loads
 from pathlib import Path
 from yarl import URL
-from orjson import loads, dumps
 from aiohttp.client import (
     ClientSession,
     ClientTimeout,
@@ -37,7 +37,7 @@ AsyncAPIResultIterator = t.AsyncIterator[
 
 async def _parse_json_resp(response: ClientResponse) -> AsyncAPIResultIterator:
     """Parse json api response"""
-    data = await response.json(loads=loads)
+    data = await response.json()
     meta = {}
     meta.update(data)
     del meta['results']
@@ -49,7 +49,7 @@ async def _parse_json_error(
     response: ClientResponse,
 ) -> AsyncAPIResultIterator:
     """Parse json api error"""
-    data = await response.json(loads=loads)
+    data = await response.json()
     yield None, data
 
 
@@ -150,7 +150,6 @@ class OnypheAPIClientSession(ClientSession):
             headers=self.__headers,
             timeout=self.__timeout,
             raise_for_status=True,
-            json_serialize=dumps,
         )
 
     # pylint: enable=R0913,R0914
