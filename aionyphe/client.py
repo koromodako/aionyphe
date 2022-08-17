@@ -124,7 +124,7 @@ async def _handle_resp(
             if resp.status == 400:
                 error_text, error_code = await _get_error_text(resp)
                 _log_and_raise(
-                    "bad request, server cannot understand your request: %s (err=%d)",
+                    "server refused to process your request: %s (err=%d)",
                     error_text,
                     error_code,
                 )
