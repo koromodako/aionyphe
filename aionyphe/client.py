@@ -2,13 +2,14 @@
 """
 import typing as t
 from ssl import SSLContext
-from json import loads
+from json import loads, JSONDecodeError
 from pathlib import Path
 from yarl import URL
 from aiohttp.client import (
     ClientSession,
     ClientTimeout,
     ClientResponse,
+    ContentTypeError,
     ClientResponseError,
     ClientProxyConnectionError,
 )
@@ -56,12 +57,27 @@ async def _parse_json_error(
 async def _parse_ndjson_resp(
     response: ClientResponse,
 ) -> AsyncAPIResultIterator:
-    """Parse ndjson api response"""
+    """Parse newline delimited json api response"""
     while True:
         line = await response.content.readline()
         if not line:
             break
         yield None, loads(line)
+
+
+def _log_and_raise(message: str, *args, **kwargs):
+    LOGGER.critical(message, *args, **kwargs)
+    raise OnypheAPIError(message)
+
+
+async def _get_error_text(resp: ClientResponse) -> t.Tuple[str, int]:
+    try:
+        body = await resp.json()
+        return body['text'], body['error']
+    except (
+        ClientResponseError, ContentTypeError, JSONDecodeError, KeyError
+    ):
+        return "error text is missing", -1
 
 
 async def _handle_resp(
@@ -70,20 +86,23 @@ async def _handle_resp(
     """Generic response handler"""
     try:
         async with response as resp:
+            if resp.status == 429:
+                _log_and_raise("rate limiting triggered!")
+            if resp.status == 400:
+                error_text, error_code = await _get_error_text(resp)
+                _log_and_raise(
+                    "bad request, server cannot understand your request: %s (err=%d)",
+                    error_text, error_code
+                )
+            if resp.status >= 300:
+                _log_and_raise(
+                    "unexpected response from onyphe api (resp.status=%d)",
+                    resp.status,
+                )
             async for meta, result in parse_resp(resp):
                 yield meta, result
     except ClientProxyConnectionError as exc:
-        LOGGER.critical("failed to connect to proxy!")
-        raise OnypheAPIError from exc
-    except ClientResponseError as exc:
-        if exc.status == 429:
-            LOGGER.critical("rate limiting triggered!")
-        elif exc.status == 400:
-            LOGGER.critical(
-                "bad request, server cannot understand your request!"
-            )
-        else:
-            LOGGER.exception("unexpected response from API!")
+        LOGGER.critical("proxy connection failed!")
         raise OnypheAPIError from exc
 
 
@@ -149,7 +168,6 @@ class OnypheAPIClientSession(ClientSession):
             base_url=str(self.__base_url),
             headers=self.__headers,
             timeout=self.__timeout,
-            raise_for_status=True,
         )
 
     # pylint: enable=R0913,R0914
