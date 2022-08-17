@@ -4,6 +4,7 @@ import typing as t
 from ssl import SSLContext
 from json import loads, JSONDecodeError
 from pathlib import Path
+from asyncio import Semaphore
 from yarl import URL
 from aiohttp.client import (
     ClientSession,
@@ -13,7 +14,7 @@ from aiohttp.client import (
     ClientResponseError,
     ClientProxyConnectionError,
 )
-from .enum import OnypheCategory, OnypheSummaryType
+from .enum import OnypheFeature, OnypheCategory, OnypheSummaryType
 from .logging import get_logger
 from .exception import OnypheAPIError
 from .__version__ import version as VERSION
@@ -24,16 +25,50 @@ DEFAULT_HOST = 'www.onyphe.io'
 DEFAULT_PORT = 443
 DEFAULT_SCHEME = 'https'
 DEFAULT_VERSION = 'v2'
+CLIENT_HEADERS = {
+    'User-Agent': f'aionyphe/{VERSION}',
+    'Content-Type': 'application/json',
+}
 BEST_CATEGORIES = [
     OnypheCategory.WHOIS,
     OnypheCategory.GEOLOC,
     OnypheCategory.INETNUM,
     OnypheCategory.THREATLIST,
 ]
+LIMITED_FEATURES = [
+    (OnypheFeature.USER, None),
+    (OnypheFeature.SUMMARY, None),
+    (OnypheFeature.SIMPLE, None),
+    (OnypheFeature.DATAMD5, None),
+    (OnypheFeature.RESOLVER_FWD, None),
+    (OnypheFeature.RESOLVER_REV, None),
+    (OnypheFeature.SIMPLE_BEST, None),
+    (OnypheFeature.SEARCH, None),
+    (OnypheFeature.ALERT_LIST, None),
+    (OnypheFeature.ALERT_ADD, None),
+    (OnypheFeature.ALERT_DEL, None),
+    (OnypheFeature.BULK_SUMMARY, None),
+    (OnypheFeature.BULK_SIMPLE_IP, None),
+    (OnypheFeature.BULK_SIMPLE_BEST_IP, None),
+    (OnypheFeature.EXPORT, 1),
+]
 
 AsyncAPIResultIterator = t.AsyncIterator[
     t.Tuple[t.Optional[t.Mapping], t.Mapping]
 ]
+
+
+class _SemaphoreStub:
+    """asyncio.Semaphore partial stub"""
+
+    def __init__(self, value: int):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args, **kwargs):
+        pass
 
 
 async def _parse_json_resp(response: ClientResponse) -> AsyncAPIResultIterator:
@@ -74,9 +109,7 @@ async def _get_error_text(resp: ClientResponse) -> t.Tuple[str, int]:
     try:
         body = await resp.json()
         return body['text'], body['error']
-    except (
-        ClientResponseError, ContentTypeError, JSONDecodeError, KeyError
-    ):
+    except (ClientResponseError, ContentTypeError, JSONDecodeError, KeyError):
         return "error text is missing", -1
 
 
@@ -92,7 +125,8 @@ async def _handle_resp(
                 error_text, error_code = await _get_error_text(resp)
                 _log_and_raise(
                     "bad request, server cannot understand your request: %s (err=%d)",
-                    error_text, error_code
+                    error_text,
+                    error_code,
                 )
             if resp.status >= 300:
                 _log_and_raise(
@@ -104,6 +138,34 @@ async def _handle_resp(
     except ClientProxyConnectionError as exc:
         LOGGER.critical("proxy connection failed!")
         raise OnypheAPIError from exc
+
+
+def _init_proxy(
+    host: t.Optional[str] = None,
+    port: t.Optional[int] = None,
+    scheme: t.Optional[str] = None,
+    username: t.Optional[str] = None,
+    password: t.Optional[str] = None,
+):
+    LOGGER.info(
+        "client using proxy: %s",
+        URL.build(scheme=scheme, host=host, port=port),
+    )
+    return URL.build(
+        scheme=scheme, host=host, port=port, user=username, password=password
+    )
+
+
+def _init_semaphores(disable_semaphores: bool):
+    semaphores = {}
+    for feature, concurrency_limit in LIMITED_FEATURES:
+        semaphore_cls = (
+            _SemaphoreStub
+            if disable_semaphores or concurrency_limit is None
+            else Semaphore
+        )
+        semaphores[feature] = semaphore_cls(concurrency_limit)
+    return semaphores
 
 
 class OnypheAPIClientSession(ClientSession):
@@ -128,6 +190,7 @@ class OnypheAPIClientSession(ClientSession):
         connect: t.Optional[int] = None,
         sock_read: t.Optional[int] = None,
         sock_connect: t.Optional[int] = None,
+        disable_semaphores: bool = False,
     ):
         self.__version = version
         self.__timeout = ClientTimeout(
@@ -138,32 +201,26 @@ class OnypheAPIClientSession(ClientSession):
         )
         self.__base_url = URL.build(scheme=scheme, host=host, port=port)
         self.__request_kwargs = {}
+        # initialize ssl configuration
         if ssl:
             self.__request_kwargs['ssl'] = ssl
+        # initialize proxy configuration
         if proxy_scheme:
-            proxy = URL.build(
-                scheme=proxy_scheme,
-                host=proxy_host,
-                port=proxy_port,
-                user=proxy_username,
-                password=proxy_password,
+            self.__request_kwargs['proxy'] = _init_proxy(
+                proxy_host,
+                proxy_port,
+                proxy_scheme,
+                proxy_username,
+                proxy_password,
             )
-            LOGGER.info(
-                "client using proxy: %s",
-                URL.build(
-                    scheme=proxy_scheme,
-                    host=proxy_host,
-                    port=proxy_port,
-                ),
-            )
-            self.__request_kwargs['proxy'] = proxy
             self.__request_kwargs['proxy_headers'] = proxy_headers
-        self.__headers = {
-            'User-Agent': f'aionyphe/{VERSION}',
-            'Content-Type': 'application/json',
-        }
+        # initialize generic request headers
+        self.__headers = dict(CLIENT_HEADERS)
         if api_key:
-            self.__headers['Authorization'] = f'apikey {api_key}'
+            self.__headers.update({'Authorization': f'apikey {api_key}'})
+        # initialize internal semaphores
+        self.__semaphores = _init_semaphores(disable_semaphores)
+        # configure aiohttp.client.ClientSession super instance
         super().__init__(
             base_url=str(self.__base_url),
             headers=self.__headers,
@@ -216,8 +273,10 @@ class OnypheAPIClientSession(ClientSession):
         the complete list of filters you are allowed to user as per your license,
         or how many credits are remaining.
         """
-        async for meta, result in self.__get('user', _parse_json_resp):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.USER]
+        async with sem:
+            async for meta, result in self.__get('user', _parse_json_resp):
+                yield meta, result
 
     async def summary(
         self, summary_type: OnypheSummaryType, needle: str, page: int = 1
@@ -229,12 +288,14 @@ class OnypheAPIClientSession(ClientSession):
         Note: all fields are returned except data and content and those not
         allowed by your subscription.
         """
-        async for meta, result in self.__get(
-            f'summary/{summary_type.value}/{needle}',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.SUMMARY]
+        async with sem:
+            async for meta, result in self.__get(
+                f'summary/{summary_type.value}/{needle}',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def simple(
         self, category: OnypheCategory, needle: str, page: int = 1
@@ -243,12 +304,14 @@ class OnypheAPIClientSession(ClientSession):
         Results about category of information we have for the given needle with
         history of changes, if any.
         """
-        async for meta, result in self.__get(
-            f'simple/{category.value}/{needle}',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.SIMPLE]
+        async with sem:
+            async for meta, result in self.__get(
+                f'simple/{category.value}/{needle}',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def simple_datascan_datamd5(
         self, md5: str, page: int = 1
@@ -257,12 +320,14 @@ class OnypheAPIClientSession(ClientSession):
         Results about datascan/datamd5 category of information we have for the
         given domain or hostname with history of changes, if any.
         """
-        async for meta, result in self.__get(
-            f'simple/datascan/datamd5/{md5}',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.DATAMD5]
+        async with sem:
+            async for meta, result in self.__get(
+                f'simple/datascan/datamd5/{md5}',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def simple_resolver_forward(
         self, domain_or_hostname: str, page: int = 1
@@ -271,12 +336,14 @@ class OnypheAPIClientSession(ClientSession):
         Results about resolver category of information we have for the given
         domain or hostname with history of changes, if any.
         """
-        async for meta, result in self.__get(
-            f'simple/resolver/forward/{domain_or_hostname}',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.RESOLVER_FWD]
+        async with sem:
+            async for meta, result in self.__get(
+                f'simple/resolver/forward/{domain_or_hostname}',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def simple_resolver_reverse(
         self, ipaddr: str, page: int = 1
@@ -285,12 +352,14 @@ class OnypheAPIClientSession(ClientSession):
         Results about resolver category of information we have for the given
         ip address with history of changes, if any.
         """
-        async for meta, result in self.__get(
-            f'simple/resolver/reverse/{ipaddr}',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.RESOLVER_REV]
+        async with sem:
+            async for meta, result in self.__get(
+                f'simple/resolver/reverse/{ipaddr}',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def simple_best(
         self, category: OnypheCategory, ipaddr: str, page: int = 1
@@ -304,12 +373,14 @@ class OnypheAPIClientSession(ClientSession):
         """
         if category not in BEST_CATEGORIES:
             raise ValueError(f"unsupported best category: {category}")
-        async for meta, result in self.__get(
-            f'simple/{category.value}/best/{ipaddr}',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.SIMPLE_BEST]
+        async with sem:
+            async for meta, result in self.__get(
+                f'simple/{category.value}/best/{ipaddr}',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def search(self, oql: str, page: int = 1) -> AsyncAPIResultIterator:
         """
@@ -321,23 +392,27 @@ class OnypheAPIClientSession(ClientSession):
         Entreprise functions allows to query older data or even shorter
         timeranges like just the previous day, for instance.
         """
-        async for meta, result in self.__get(
-            f'search/{oql}',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.SEARCH]
+        async with sem:
+            async for meta, result in self.__get(
+                f'search/{oql}',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def alert_list(self, page: int = 1) -> AsyncAPIResultIterator:
         """
         List of configured alerts
         """
-        async for meta, result in self.__get(
-            'alert/list',
-            _parse_json_resp,
-            page=page,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.ALERT_LIST]
+        async with sem:
+            async for meta, result in self.__get(
+                'alert/list',
+                _parse_json_resp,
+                page=page,
+            ):
+                yield meta, result
 
     async def alert_add(
         self, name: str, oql: str, email: str
@@ -345,22 +420,26 @@ class OnypheAPIClientSession(ClientSession):
         """
         Add an alert
         """
-        async for meta, result in self.__post(
-            'alert/add',
-            _parse_json_error,
-            json={'name': name, 'query': oql, 'email': email},
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.ALERT_ADD]
+        async with sem:
+            async for meta, result in self.__post(
+                'alert/add',
+                _parse_json_error,
+                json={'name': name, 'query': oql, 'email': email},
+            ):
+                yield meta, result
 
     async def alert_del(self, identifier: str) -> AsyncAPIResultIterator:
         """
         Delete an alert
         """
-        async for meta, result in self.__post(
-            f'alert/del/{identifier}',
-            _parse_json_error,
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.ALERT_DEL]
+        async with sem:
+            async for meta, result in self.__post(
+                f'alert/del/{identifier}',
+                _parse_json_error,
+            ):
+                yield meta, result
 
     async def bulk_summary(
         self, summary_type: OnypheSummaryType, filepath: Path
@@ -372,12 +451,14 @@ class OnypheAPIClientSession(ClientSession):
         Results are rendered as one JSON entry per line for easier integration
         with external tools.
         """
-        async for meta, result in self.__post(
-            f'bulk/summary/{summary_type.value}',
-            _parse_ndjson_resp,
-            data=filepath.read_bytes(),
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.BULK_SUMMARY]
+        async with sem:
+            async for meta, result in self.__post(
+                f'bulk/summary/{summary_type.value}',
+                _parse_ndjson_resp,
+                data=filepath.read_bytes(),
+            ):
+                yield meta, result
 
     async def bulk_simple_ip(
         self,
@@ -391,12 +472,14 @@ class OnypheAPIClientSession(ClientSession):
         Results are rendered as one JSON entry per line for easier integration
         with external tools.
         """
-        async for meta, result in self.__post(
-            f'bulk/simple/{category.value}/ip',
-            _parse_ndjson_resp,
-            data=filepath.read_bytes(),
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.BULK_SIMPLE_IP]
+        async with sem:
+            async for meta, result in self.__post(
+                f'bulk/simple/{category.value}/ip',
+                _parse_ndjson_resp,
+                data=filepath.read_bytes(),
+            ):
+                yield meta, result
 
     async def bulk_simple_best_ip(
         self,
@@ -414,12 +497,14 @@ class OnypheAPIClientSession(ClientSession):
         """
         if category not in BEST_CATEGORIES:
             raise ValueError
-        async for meta, result in self.__post(
-            f'bulk/simple/{category.value}/best/ip',
-            _parse_ndjson_resp,
-            data=filepath.read_bytes(),
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.BULK_SIMPLE_BEST_IP]
+        async with sem:
+            async for meta, result in self.__post(
+                f'bulk/simple/{category.value}/best/ip',
+                _parse_ndjson_resp,
+                data=filepath.read_bytes(),
+            ):
+                yield meta, result
 
     async def export(self, oql: str) -> AsyncAPIResultIterator:
         """
@@ -432,8 +517,16 @@ class OnypheAPIClientSession(ClientSession):
 
         Here is an example of a OQL query string:
             category:datascan product:Nginx protocol:http os:Windows tls:true.
+
+        WARNING: export feature is limited and does not support concurrency,
+                 this limitation also implemented on both server and client sides.
+                 On client side, this limitation is implemented using
+                 asyncio.Semaphore instances but can be disabled adding
+                 disable_semaphores=True when creating OnypheAPIClientSession
         """
-        async for meta, result in self.__get(
-            f'export/{oql}', _parse_ndjson_resp
-        ):
-            yield meta, result
+        sem = self.__semaphores[OnypheFeature.EXPORT]
+        async with sem:
+            async for meta, result in self.__get(
+                f'export/{oql}', _parse_ndjson_resp
+            ):
+                yield meta, result

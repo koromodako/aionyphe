@@ -3,6 +3,26 @@
 from enum import Enum
 
 
+class OnypheFeature(Enum):
+    """Onyphe features"""
+
+    USER = 'user'
+    SUMMARY = 'summary'
+    SIMPLE = 'simple'
+    DATAMD5 = 'datamd5'
+    RESOLVER_FWD = 'resolver_fwd'
+    RESOLVER_REV = 'resolver_rev'
+    SIMPLE_BEST = 'simple_best'
+    SEARCH = 'search'
+    ALERT_LIST = 'alert_list'
+    ALERT_ADD = 'alert_add'
+    ALERT_DEL = 'alert_del'
+    BULK_SUMMARY = 'bulk_summary'
+    BULK_SIMPLE_IP = 'bulk_simple_ip'
+    BULK_SIMPLE_BEST_IP = 'bulk_simple_best_ip'
+    EXPORT = 'export'
+
+
 class OnypheCategory(Enum):
     """Onyphe data categories"""
 
