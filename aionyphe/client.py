@@ -5,6 +5,7 @@ from ssl import SSLContext
 from json import loads, JSONDecodeError
 from pathlib import Path
 from asyncio import Semaphore
+from urllib.parse import quote
 from yarl import URL
 from aiohttp.client import (
     ClientSession,
@@ -395,7 +396,7 @@ class OnypheAPIClientSession(ClientSession):
         sem = self.__semaphores[OnypheFeature.SEARCH]
         async with sem:
             async for meta, result in self.__get(
-                f'search/{oql}',
+                f'search/{quote(oql)}',
                 _parse_json_resp,
                 page=page,
             ):
