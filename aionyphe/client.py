@@ -169,6 +169,18 @@ def _init_semaphores(disable_semaphores: bool):
     return semaphores
 
 
+def _select_data(filepath: t.Optional[Path], data: t.Optional[bytes]):
+    if data is None:
+        if filepath is None:
+            raise ValueError("one of {filepath,data} argument shall be set")
+        if not filepath.is_file():
+            raise ValueError(
+                f"file not found or not a regular file: {filepath}"
+            )
+        data = filepath.read_bytes()
+    return data
+
+
 class OnypheAPIClientSession(ClientSession):
     """Asynchronous Onyphe API client"""
 
@@ -443,7 +455,10 @@ class OnypheAPIClientSession(ClientSession):
                 yield meta, result
 
     async def bulk_summary(
-        self, summary_type: OnypheSummaryType, filepath: Path
+        self,
+        summary_type: OnypheSummaryType,
+        filepath: t.Optional[Path] = None,
+        data: t.Optional[bytes] = None,
     ) -> AsyncAPIResultIterator:
         """
         Results about all categories of information we have for the given
@@ -452,19 +467,21 @@ class OnypheAPIClientSession(ClientSession):
         Results are rendered as one JSON entry per line for easier integration
         with external tools.
         """
+        data = _select_data(filepath, data)
         sem = self.__semaphores[OnypheFeature.BULK_SUMMARY]
         async with sem:
             async for meta, result in self.__post(
                 f'bulk/summary/{summary_type.value}',
                 _parse_ndjson_resp,
-                data=filepath.read_bytes(),
+                data=data,
             ):
                 yield meta, result
 
     async def bulk_simple_ip(
         self,
         category: OnypheCategory,
-        filepath: Path,
+        filepath: t.Optional[Path] = None,
+        data: t.Optional[bytes] = None,
     ) -> AsyncAPIResultIterator:
         """
         Results about category of information we have for the given IPv{4,6}
@@ -473,19 +490,21 @@ class OnypheAPIClientSession(ClientSession):
         Results are rendered as one JSON entry per line for easier integration
         with external tools.
         """
+        data = _select_data(filepath, data)
         sem = self.__semaphores[OnypheFeature.BULK_SIMPLE_IP]
         async with sem:
             async for meta, result in self.__post(
                 f'bulk/simple/{category.value}/ip',
                 _parse_ndjson_resp,
-                data=filepath.read_bytes(),
+                data=data,
             ):
                 yield meta, result
 
     async def bulk_simple_best_ip(
         self,
         category: OnypheCategory,
-        filepath: Path,
+        filepath: t.Optional[Path] = None,
+        data: t.Optional[bytes] = None,
     ) -> AsyncAPIResultIterator:
         """
         Result about geoloc category of information we have for the given
@@ -497,13 +516,14 @@ class OnypheAPIClientSession(ClientSession):
         with external tools.
         """
         if category not in BEST_CATEGORIES:
-            raise ValueError
+            raise ValueError(f"unsupported best category: {category}")
+        data = _select_data(filepath, data)
         sem = self.__semaphores[OnypheFeature.BULK_SIMPLE_BEST_IP]
         async with sem:
             async for meta, result in self.__post(
                 f'bulk/simple/{category.value}/best/ip',
                 _parse_ndjson_resp,
-                data=filepath.read_bytes(),
+                data=data,
             ):
                 yield meta, result
 
