@@ -22,14 +22,16 @@ from . import (
     OnypheAPIError,
     iter_pages,
 )
+from .client import BEST_CATEGORIES
 from .logging import get_logger
 from .__version__ import version
 
 
-LOGGER = get_logger('main')
-SCHEMES = {'https', 'http'}
-CATEGORIES = [category.value for category in OnypheCategory]
-SUMMARY_TYPES = [summary_type.value for summary_type in OnypheSummaryType]
+_LOGGER = get_logger('main')
+_SCHEMES = {'https', 'http'}
+_CATEGORIES = [category.value for category in OnypheCategory]
+_SUMMARY_TYPES = [summary_type.value for summary_type in OnypheSummaryType]
+_BEST_CATEGORIES = [category.value for category in BEST_CATEGORIES]
 
 
 def load_conf():
@@ -40,7 +42,7 @@ def load_conf():
         try:
             config = loads(config_file.read_text())
         except:
-            LOGGER.exception("failed to load configuration file!")
+            _LOGGER.exception("failed to load configuration file!")
     return config
 
 
@@ -65,7 +67,7 @@ def parse_scheme(arg):
     """Parse scheme argument and raise ValueError if invalid"""
     if not arg:
         return None
-    if not arg in SCHEMES:
+    if not arg in _SCHEMES:
         raise ValueError("invalid scheme value!")
     return arg
 
@@ -144,7 +146,7 @@ async def _alert_del_cmd(client, args):
     await _print_results(client.alert_del(args.identifier))
 
 
-async def _bulk__simple_cmd(client, args):
+async def _bulk_simple_cmd(client, args):
     if not args.filepath.is_file():
         raise ValueError("filepath should be an existing file.")
     await _print_results(
@@ -155,7 +157,7 @@ async def _bulk__simple_cmd(client, args):
     )
 
 
-async def _bulk__summary_cmd(client, args):
+async def _bulk_summary_cmd(client, args):
     if not args.filepath.is_file():
         raise ValueError("filepath should be an existing file.")
     await _print_results(
@@ -171,6 +173,17 @@ async def _bulk_simple_best_cmd(client, args):
         raise ValueError("filepath should be an existing file.")
     await _print_results(
         client.bulk_simple_best_ip(
+            OnypheCategory(args.category),
+            args.filepath,
+        )
+    )
+
+
+async def _bulk_discovery_asset_cmd(client, args):
+    if not args.filepath.is_file():
+        raise ValueError("filepath should be an existing file.")
+    await _print_results(
+        client.bulk_discovery_asset(
             OnypheCategory(args.category),
             args.filepath,
         )
@@ -266,12 +279,15 @@ def _setup_global_arguments(parser):
 
 def _setup_command_parsers(cmd):
     """Define command parsers"""
+    # myip
     myip = cmd.add_parser('myip', help="Display current user public IP")
     myip.set_defaults(afunc=_myip_cmd)
+    # user
     user = cmd.add_parser(
         'user', help="Display current user account information"
     )
     user.set_defaults(afunc=_user_cmd)
+    # summary
     summary = cmd.add_parser('summary', help="Query summary API")
     summary.add_argument(
         '--first', type=int, default=1, help="First page to retrieve"
@@ -280,9 +296,10 @@ def _setup_command_parsers(cmd):
         '--last', type=int, default=1, help="Last page to retrieve"
     )
     summary.add_argument(
-        'summary_type', choices=SUMMARY_TYPES, help="Type of summary query"
+        'summary_type', choices=_SUMMARY_TYPES, help="Type of summary query"
     )
     summary.set_defaults(afunc=_summary_cmd)
+    # simple
     simple = cmd.add_parser('simple', help="Query simple API")
     simple.add_argument(
         '--first', type=int, default=1, help="First page to retrieve"
@@ -291,9 +308,10 @@ def _setup_command_parsers(cmd):
         '--last', type=int, default=1, help="Last page to retrieve"
     )
     simple.add_argument(
-        'category', choices=CATEGORIES, help="Category of data to query"
+        'category', choices=_CATEGORIES, help="Category of data to query"
     )
     simple.set_defaults(afunc=_simple_cmd)
+    # simple-best
     simple_best = cmd.add_parser('simple-best', help="Query simple best API")
     simple_best.add_argument(
         '--first', type=int, default=1, help="First page to retrieve"
@@ -302,9 +320,10 @@ def _setup_command_parsers(cmd):
         '--last', type=int, default=1, help="Last page to retrieve"
     )
     simple_best.add_argument(
-        'category', choices=CATEGORIES, help="Category of data to query"
+        'category', choices=_BEST_CATEGORIES, help="Category of data to query"
     )
     simple_best.set_defaults(afunc=_simple_best_cmd)
+    # search
     search = cmd.add_parser('search', help="Query search API")
     search.add_argument(
         '--first', type=int, default=1, help="First page to retrieve"
@@ -314,6 +333,7 @@ def _setup_command_parsers(cmd):
     )
     search.add_argument('oql', help="")
     search.set_defaults(afunc=_search_cmd)
+    # alert-list
     alert_list = cmd.add_parser('alert-list', help="List configured alerts")
     alert_list.add_argument(
         '--first', type=int, default=1, help="First page to retrieve"
@@ -322,42 +342,59 @@ def _setup_command_parsers(cmd):
         '--last', type=int, default=1, help="Last page to retrieve"
     )
     alert_list.set_defaults(afunc=_alert_list_cmd)
+    # alert-add
     alert_add = cmd.add_parser('alert-add', help="Configure an alert")
     alert_add.add_argument('name', help="Alert name")
     alert_add.add_argument('email', help="Alert notification recipient email")
     alert_add.add_argument('oql', help="Alert Onyphe Query Language query")
     alert_add.set_defaults(afunc=_alert_add_cmd)
+    # alert-del
     alert_del = cmd.add_parser('alert-del', help="Delete an existing alert")
     alert_del.add_argument('identifier', help="Alert identifier")
     alert_del.set_defaults(afunc=_alert_del_cmd)
+    # bulk-simple
     bulk_simple = cmd.add_parser('bulk-simple', help="Query bulk simple API")
     bulk_simple.add_argument(
-        'category', choices=CATEGORIES, help="Category of data to query"
+        'category', choices=_CATEGORIES, help="Category of data to query"
     )
     bulk_simple.add_argument(
         'filepath', type=Path, help="Path to file containing needles"
     )
-    bulk_simple.set_defaults(afunc=_bulk__simple_cmd)
+    bulk_simple.set_defaults(afunc=_bulk_simple_cmd)
+    # bulk-summary
     bulk_summary = cmd.add_parser(
         'bulk-summary', help="Query bulk summary API"
     )
     bulk_summary.add_argument(
-        'summary_type', choices=SUMMARY_TYPES, help="Type of summary to query"
+        'summary_type', choices=_SUMMARY_TYPES, help="Type of summary to query"
     )
     bulk_summary.add_argument(
         'filepath', type=Path, help="Path to file containing needles"
     )
-    bulk_summary.set_defaults(afunc=_bulk__summary_cmd)
+    bulk_summary.set_defaults(afunc=_bulk_summary_cmd)
+    # bulk-simple-best
     bulk_simple_best = cmd.add_parser(
         'bulk-simple-best', help="Query bulk simple best API"
     )
     bulk_simple_best.add_argument(
-        'category', choices=CATEGORIES, help="Category of data to query"
+        'category', choices=_BEST_CATEGORIES, help="Category of data to query"
     )
     bulk_simple_best.add_argument(
         'filepath', type=Path, help="Path to file containing needles"
     )
     bulk_simple_best.set_defaults(afunc=_bulk_simple_best_cmd)
+    # bulk-discovery-asset
+    bulk_discovery_asset = cmd.add_parser(
+        'bulk-discovery-asset', help="Query bulk discovery asset API"
+    )
+    bulk_discovery_asset.add_argument(
+        'category', choices=_CATEGORIES, help="Category of data to query"
+    )
+    bulk_discovery_asset.add_argument(
+        'filepath', type=Path, help="Path to file containing needles"
+    )
+    bulk_discovery_asset.set_defaults(afunc=_bulk_discovery_asset_cmd)
+    # export
     export = cmd.add_parser('export', help="Query export API")
     export.add_argument('oql', help="Onyphe Query Language query")
     export.set_defaults(afunc=_export_cmd)
@@ -379,9 +416,9 @@ def app():
     try:
         run(_main(args))
     except OnypheAPIError:
-        LOGGER.critical("onyphe API error.")
+        _LOGGER.critical("onyphe API error.")
     except KeyboardInterrupt:
-        LOGGER.warning("user interruption.")
+        _LOGGER.warning("user interruption.")
 
 
 if __name__ == '___main__':
