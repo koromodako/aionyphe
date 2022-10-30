@@ -2,6 +2,7 @@
 """
 import typing as t
 from ssl import SSLContext
+from copy import deepcopy
 from json import loads, JSONDecodeError
 from pathlib import Path
 from asyncio import Semaphore
@@ -30,29 +31,30 @@ CLIENT_HEADERS = {
     'User-Agent': f'aionyphe/{VERSION}',
     'Content-Type': 'application/json',
 }
-BEST_CATEGORIES = [
+BEST_CATEGORIES = {
     OnypheCategory.WHOIS,
     OnypheCategory.GEOLOC,
     OnypheCategory.INETNUM,
     OnypheCategory.THREATLIST,
-]
-LIMITED_FEATURES = [
-    (OnypheFeature.USER, None),
-    (OnypheFeature.SUMMARY, None),
-    (OnypheFeature.SIMPLE, None),
-    (OnypheFeature.DATAMD5, None),
-    (OnypheFeature.RESOLVER_FWD, None),
-    (OnypheFeature.RESOLVER_REV, None),
-    (OnypheFeature.SIMPLE_BEST, None),
-    (OnypheFeature.SEARCH, None),
-    (OnypheFeature.ALERT_LIST, None),
-    (OnypheFeature.ALERT_ADD, None),
-    (OnypheFeature.ALERT_DEL, None),
-    (OnypheFeature.BULK_SUMMARY, None),
-    (OnypheFeature.BULK_SIMPLE_IP, None),
-    (OnypheFeature.BULK_SIMPLE_BEST_IP, None),
-    (OnypheFeature.EXPORT, 1),
-]
+}
+DEFAULT_RATE_LIMITING = {
+    OnypheFeature.USER: None,
+    OnypheFeature.SUMMARY: None,
+    OnypheFeature.SIMPLE: None,
+    OnypheFeature.DATAMD5: None,
+    OnypheFeature.RESOLVER_FWD: None,
+    OnypheFeature.RESOLVER_REV: None,
+    OnypheFeature.SIMPLE_BEST: None,
+    OnypheFeature.SEARCH: None,
+    OnypheFeature.ALERT_LIST: None,
+    OnypheFeature.ALERT_ADD: None,
+    OnypheFeature.ALERT_DEL: None,
+    OnypheFeature.BULK_SUMMARY: None,
+    OnypheFeature.BULK_SIMPLE_IP: None,
+    OnypheFeature.BULK_SIMPLE_BEST_IP: None,
+    OnypheFeature.BULK_DISCOVERY_ASSET: None,
+    OnypheFeature.EXPORT: 1,
+}
 
 AsyncAPIResultIterator = t.AsyncIterator[
     t.Tuple[t.Optional[t.Mapping], t.Mapping]
@@ -62,7 +64,7 @@ AsyncAPIResultIterator = t.AsyncIterator[
 class _SemaphoreStub:
     """asyncio.Semaphore partial stub"""
 
-    def __init__(self, value: int):
+    def __init__(self, value: int = 0):
         pass
 
     async def __aenter__(self):
@@ -157,14 +159,17 @@ def _init_proxy(
     )
 
 
-def _init_semaphores(disable_semaphores: bool):
+def _init_semaphores(
+    rate_limiting: t.Mapping[OnypheFeature, int],
+    disable_semaphores: bool,
+):
     semaphores = {}
-    for feature, concurrency_limit in LIMITED_FEATURES:
-        semaphore_cls = (
-            _SemaphoreStub
-            if disable_semaphores or concurrency_limit is None
-            else Semaphore
-        )
+    for feature in OnypheFeature:
+        if disable_semaphores:
+            semaphores[feature] = _SemaphoreStub()
+            continue
+        concurrency_limit = rate_limiting.get(feature)
+        semaphore_cls = Semaphore if concurrency_limit else _SemaphoreStub
         semaphores[feature] = semaphore_cls(concurrency_limit)
     return semaphores
 
@@ -204,6 +209,7 @@ class OnypheAPIClientSession(ClientSession):
         sock_read: t.Optional[int] = None,
         sock_connect: t.Optional[int] = None,
         disable_semaphores: bool = False,
+        rate_limiting: t.Optional[t.Mapping[OnypheFeature, int]] = None,
     ):
         self.__version = version
         self.__timeout = ClientTimeout(
@@ -232,7 +238,11 @@ class OnypheAPIClientSession(ClientSession):
         if api_key:
             self.__headers.update({'Authorization': f'apikey {api_key}'})
         # initialize internal semaphores
-        self.__semaphores = _init_semaphores(disable_semaphores)
+        inst_rate_limiting = deepcopy(DEFAULT_RATE_LIMITING)
+        inst_rate_limiting.update(rate_limiting or {})
+        self.__semaphores = _init_semaphores(
+            inst_rate_limiting, disable_semaphores
+        )
         # configure aiohttp.client.ClientSession super instance
         super().__init__(
             base_url=str(self.__base_url),
@@ -522,6 +532,30 @@ class OnypheAPIClientSession(ClientSession):
         async with sem:
             async for meta, result in self.__post(
                 f'bulk/simple/{category.value}/best/ip',
+                _parse_ndjson_resp,
+                data=data,
+            ):
+                yield meta, result
+
+    async def bulk_discovery_asset(
+        self,
+        category: OnypheCategory,
+        filepath: t.Optional[Path] = None,
+        data: t.Optional[bytes] = None,
+    ) -> AsyncAPIResultIterator:
+        """
+        It allows to execute bulk searches by leveraging the best from ONYPHE
+        Query Language (OQL). Multiple entries may match so we return all of
+        them with history of changes. It will auto-scroll through all results.
+        Results are rendered as one JSON entry per line for easier integration
+        with external tools. The last 30 days of data are queried by default,
+        but you can use the -since function to fetch more.
+        """
+        data = _select_data(filepath, data)
+        sem = self.__semaphores[OnypheFeature.BULK_DISCOVERY_ASSET]
+        async with sem:
+            async for meta, result in self.__post(
+                f'bulk/discovery/{category.value}/asset',
                 _parse_ndjson_resp,
                 data=data,
             ):

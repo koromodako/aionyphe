@@ -374,6 +374,7 @@ def _parse_args():
 
 
 def app():
+    """Application entrypoint"""
     args = _parse_args()
     try:
         run(_main(args))

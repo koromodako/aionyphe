@@ -20,6 +20,7 @@ class OnypheFeature(Enum):
     BULK_SUMMARY = 'bulk_summary'
     BULK_SIMPLE_IP = 'bulk_simple_ip'
     BULK_SIMPLE_BEST_IP = 'bulk_simple_best_ip'
+    BULK_DISCOVERY_ASSET = 'bulk_discovery_asset'
     EXPORT = 'export'
 
 
