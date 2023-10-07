@@ -1,9 +1,52 @@
+[project]
+name = "aionyphe"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["onyphe", "api", "cli", "asyncio"]
+description = "Asynchronous Onyphe API and CLI"
+requires-python = ">=3.10"
+dynamic = ["version"]
+authors = [
+  { name="koromodako", email="koromodako@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Security",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "rich~=13.0",
+    "aiodns~=4.0",
+    "aiohttp~=4.0",
+]
+
+
+[project.urls]
+"Homepage" = "https://github.com/koromodako/aionyphe"
+"Repository" = "https://github.com/koromodako/aionyphe"
+"Bug Tracker" = "https://github.com/koromodako/aionyphe/issues"
+
+
+[project.scripts]
+aionyphe = "aionyphe.main:app"
+
+
 [build-system]
-requires = ["setuptools>=30.3.0", "wheel", "setuptools_scm[toml]>=3.4"]
+requires = ["setuptools>=60", "setuptools_scm>=8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools_scm]
+version_file = "aionyphe/__version__.py"
+
 
 [tool.black]
 line-length = 79
 skip-string-normalization = true
-
-[tool.setuptools_scm]
-write_to = "aionyphe/__version__.py"
