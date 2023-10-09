@@ -39,8 +39,13 @@ aionyphe = "aionyphe.main:app"
 
 
 [build-system]
-requires = ["setuptools>=60", "setuptools_scm>=8.0", "wheel"]
+requires = ["setuptools>=68", "setuptools_scm>=8.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aionyphe", "aionyphe.*"]
 
 
 [tool.setuptools_scm]
