@@ -16,34 +16,26 @@ from pathlib import Path
 from getpass import getpass
 from argparse import ArgumentParser
 from . import (
-    OnypheAPIClientSession,
+    iter_pages,
+    client_session,
+    OnypheAPIClient,
+    OnypheAPIClientProxy,
+    OnypheAPIClientRateLimiting,
     OnypheSummaryType,
     OnypheCategory,
     OnypheAPIError,
-    iter_pages,
 )
+from .config import load_config
 from .client import BEST_CATEGORIES
 from .logging import get_logger
 from .__version__ import version
 
 
-_LOGGER = get_logger('main')
-_SCHEMES = {'https', 'http'}
-_CATEGORIES = [category.value for category in OnypheCategory]
-_SUMMARY_TYPES = [summary_type.value for summary_type in OnypheSummaryType]
-_BEST_CATEGORIES = [category.value for category in BEST_CATEGORIES]
-
-
-def load_conf():
-    """Load configuration file"""
-    config = {}
-    config_file = Path.home() / '.aionyphe'
-    if config_file.is_file():
-        try:
-            config = loads(config_file.read_text())
-        except:
-            _LOGGER.exception("failed to load configuration file!")
-    return config
+LOGGER = get_logger('main')
+SCHEMES = {'https', 'http'}
+CATEGORIES = [category.value for category in OnypheCategory]
+SUMMARY_TYPES = [summary_type.value for summary_type in OnypheSummaryType]
+BEST_CATEGORIES = [category.value for category in BEST_CATEGORIES]
 
 
 def parse_timeout(arg):
@@ -67,7 +59,7 @@ def parse_scheme(arg):
     """Parse scheme argument and raise ValueError if invalid"""
     if not arg:
         return None
-    if not arg in _SCHEMES:
+    if not arg in SCHEMES:
         raise ValueError("invalid scheme value!")
     return arg
 
@@ -97,7 +89,7 @@ async def _summary_cmd(client, args):
     await _print_results(
         iter_pages(
             client.summary,
-            [OnypheSummaryType(args.summary_type)],
+            [OnypheSummaryType(args.summary_type), args.needle],
             args.first,
             args.last,
         )
@@ -108,7 +100,7 @@ async def _simple_cmd(client, args):
     await _print_results(
         iter_pages(
             client.simple,
-            [OnypheCategory(args.category)],
+            [OnypheCategory(args.category), args.needle],
             args.first,
             args.last,
         )
@@ -119,7 +111,7 @@ async def _simple_best_cmd(client, args):
     await _print_results(
         iter_pages(
             client.simple_best,
-            [OnypheCategory(args.category)],
+            [OnypheCategory(args.category), args.ipaddr],
             args.first,
             args.last,
         )
@@ -195,36 +187,38 @@ async def _export_cmd(client, args):
 
 
 async def _main(args):
-    config = load_conf()
+    config = load_config()
     api_key = config.get('api_key') or getpass("Onyphe api key: ")
-    proxy_username = args.proxy_username or config.get('proxy_username')
     proxy_password = None
-    if args.proxy_username:
+    proxy_username = args.proxy_username or config.get('proxy_username')
+    if proxy_username:
         proxy_password = config.get('proxy_password') or getpass(
             "Proxy password: "
         )
-    kwargs = dict(
+    proxy = OnypheAPIClientProxy(
+        scheme=args.proxy_scheme or parse_scheme(config.get('proxy_scheme')),
+        host=args.proxy_host or config.get('proxy_host'),
+        port=args.proxy_port or parse_port(config.get('proxy_port')),
+        headers=(
+            args.proxy_headers or parse_headers(config.get('proxy_headers'))
+        ),
+        username=proxy_username,
+        password=proxy_password,
+    )
+    async with client_session(
+        api_key,
+        scheme=args.scheme or parse_scheme(config.get('scheme')),
         host=args.host or config.get('host'),
         port=args.port or parse_port(config.get('port')),
-        scheme=args.scheme or parse_scheme(config.get('scheme')),
-        version=args.version or config.get('version'),
-        api_key=api_key,
-        proxy_host=args.proxy_host or config.get('proxy_host'),
-        proxy_port=args.proxy_port or parse_port(config.get('proxy_port')),
-        proxy_scheme=args.proxy_scheme
-        or parse_scheme(config.get('proxy_scheme')),
-        proxy_headers=args.proxy_headers
-        or parse_headers(config.get('proxy_headers')),
-        proxy_username=proxy_username,
-        proxy_password=proxy_password,
         total=args.total or parse_timeout(config.get('total')),
         connect=args.connect or parse_timeout(config.get('connect')),
         sock_read=args.sock_read or parse_timeout(config.get('sock_read')),
-        sock_connect=args.sock_connect
-        or parse_timeout(config.get('sock_connect')),
-    )
-    async with OnypheAPIClientSession(**kwargs) as client:
-        await args.afunc(client, args)
+        sock_connect=(
+            args.sock_connect or parse_timeout(config.get('sock_connect'))
+        ),
+    ) as client:
+        api_client = OnypheAPIClient(client=client, proxy=proxy)
+        await args.afunc(api_client, args)
     # https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
     # wait 500ms to ensure underlying connection is closed before closing the
     # event loop
@@ -245,7 +239,6 @@ def _setup_global_arguments(parser):
         type=parse_scheme,
         help="Onyphe API scheme",
     )
-    parser.add_argument('--version', default='v2', help="Onyphe API version")
     parser.add_argument('--proxy-host', help="Proxy host")
     parser.add_argument('--proxy-port', type=parse_port, help="Proxy port")
     parser.add_argument(
@@ -296,8 +289,9 @@ def _setup_command_parsers(cmd):
         '--last', type=int, default=1, help="Last page to retrieve"
     )
     summary.add_argument(
-        'summary_type', choices=_SUMMARY_TYPES, help="Type of summary query"
+        'summary_type', choices=SUMMARY_TYPES, help="Type of summary query"
     )
+    summary.add_argument('needle', help="Needle to be found")
     summary.set_defaults(afunc=_summary_cmd)
     # simple
     simple = cmd.add_parser('simple', help="Query simple API")
@@ -308,8 +302,9 @@ def _setup_command_parsers(cmd):
         '--last', type=int, default=1, help="Last page to retrieve"
     )
     simple.add_argument(
-        'category', choices=_CATEGORIES, help="Category of data to query"
+        'category', choices=CATEGORIES, help="Category of data to query"
     )
+    simple.add_argument('needle', help="Needle to be found")
     simple.set_defaults(afunc=_simple_cmd)
     # simple-best
     simple_best = cmd.add_parser('simple-best', help="Query simple best API")
@@ -320,8 +315,9 @@ def _setup_command_parsers(cmd):
         '--last', type=int, default=1, help="Last page to retrieve"
     )
     simple_best.add_argument(
-        'category', choices=_BEST_CATEGORIES, help="Category of data to query"
+        'category', choices=BEST_CATEGORIES, help="Category of data to query"
     )
+    simple_best.add_argument('ipaddr', help="IP address")
     simple_best.set_defaults(afunc=_simple_best_cmd)
     # search
     search = cmd.add_parser('search', help="Query search API")
@@ -355,7 +351,7 @@ def _setup_command_parsers(cmd):
     # bulk-simple
     bulk_simple = cmd.add_parser('bulk-simple', help="Query bulk simple API")
     bulk_simple.add_argument(
-        'category', choices=_CATEGORIES, help="Category of data to query"
+        'category', choices=CATEGORIES, help="Category of data to query"
     )
     bulk_simple.add_argument(
         'filepath', type=Path, help="Path to file containing needles"
@@ -366,7 +362,7 @@ def _setup_command_parsers(cmd):
         'bulk-summary', help="Query bulk summary API"
     )
     bulk_summary.add_argument(
-        'summary_type', choices=_SUMMARY_TYPES, help="Type of summary to query"
+        'summary_type', choices=SUMMARY_TYPES, help="Type of summary to query"
     )
     bulk_summary.add_argument(
         'filepath', type=Path, help="Path to file containing needles"
@@ -377,7 +373,7 @@ def _setup_command_parsers(cmd):
         'bulk-simple-best', help="Query bulk simple best API"
     )
     bulk_simple_best.add_argument(
-        'category', choices=_BEST_CATEGORIES, help="Category of data to query"
+        'category', choices=BEST_CATEGORIES, help="Category of data to query"
     )
     bulk_simple_best.add_argument(
         'filepath', type=Path, help="Path to file containing needles"
@@ -388,7 +384,7 @@ def _setup_command_parsers(cmd):
         'bulk-discovery-asset', help="Query bulk discovery asset API"
     )
     bulk_discovery_asset.add_argument(
-        'category', choices=_CATEGORIES, help="Category of data to query"
+        'category', choices=CATEGORIES, help="Category of data to query"
     )
     bulk_discovery_asset.add_argument(
         'filepath', type=Path, help="Path to file containing needles"
@@ -416,9 +412,9 @@ def app():
     try:
         run(_main(args))
     except OnypheAPIError:
-        _LOGGER.critical("onyphe API error.")
+        LOGGER.critical("onyphe API error.")
     except KeyboardInterrupt:
-        _LOGGER.warning("user interruption.")
+        LOGGER.warning("user interruption.")
 
 
 if __name__ == '___main__':

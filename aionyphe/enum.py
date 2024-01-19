@@ -8,17 +8,17 @@ class OnypheFeature(Enum):
 
     USER = 'user'
     SUMMARY = 'summary'
-    SIMPLE = 'simple'
-    DATAMD5 = 'datamd5'
-    RESOLVER_FWD = 'resolver_fwd'
-    RESOLVER_REV = 'resolver_rev'
+    SIMPLE = 'simple'  # deprecated in Onyphe API v3
+    DATAMD5 = 'datamd5'  # deprecated in Onyphe API v3
+    RESOLVER_FWD = 'resolver_fwd'  # deprecated in Onyphe API v3
+    RESOLVER_REV = 'resolver_rev'  # deprecated in Onyphe API v3
     SIMPLE_BEST = 'simple_best'
     SEARCH = 'search'
     ALERT_LIST = 'alert_list'
     ALERT_ADD = 'alert_add'
     ALERT_DEL = 'alert_del'
     BULK_SUMMARY = 'bulk_summary'
-    BULK_SIMPLE_IP = 'bulk_simple_ip'
+    BULK_SIMPLE_IP = 'bulk_simple_ip'  # deprecated in Onyphe API v3
     BULK_SIMPLE_BEST_IP = 'bulk_simple_best_ip'
     BULK_DISCOVERY_ASSET = 'bulk_discovery_asset'
     EXPORT = 'export'

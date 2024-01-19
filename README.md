@@ -24,7 +24,7 @@ pip install uvloop
 ## Testing
 
 There is no automated testing for now. Manual testing was performed using
-Python 3.9.7 on Ubuntu 21.10. Assume all Python versions above 3.9 are supported.
+Python 3.10.12 on Ubuntu 22.04. Assume all Python versions above 3.10 are supported.
 
 ## Documentation
 
@@ -41,18 +41,18 @@ Code is formatted using [black](https://github.com/psf/black) and
 ### Direct connection
 
 ```python
+from json import dumps
 from asyncio import run
 from getpass import getpass
-from orjson import dumps
-from aionyphe import OnypheAPIClientSession
+from aionyphe import OnypheAPIClient, client_session
 
 async def main():
     oql = 'category:synscan ip:8.8.8.8'
     api_key = getpass("Enter Onyphe API key: ")
-    kwargs = dict(api_key=api_key)
-    async with OnypheAPIClientSession(**kwargs) as client:
-        async for _, result in client.export(oql):
-            print(dumps(result).decode())
+    async with client_session(api_key) as client:
+        api_client = OnypheAPIClient(client=client)
+        async for _, result in api_client.export(oql):
+            print(dumps(result))
 
 if __name__ == '__main__':
     run(main())
@@ -61,23 +61,21 @@ if __name__ == '__main__':
 ### Proxy connection
 
 ```python
+from json import dumps
 from asyncio import run
 from getpass import getpass
-from orjson import dumps
-from aionyphe import OnypheAPIClientSession
+from aionyphe import OnypheAPIClient, OnypheAPIClientProxy, client_session
 
 async def main():
     oql = 'category:synscan ip:8.8.8.8'
     api_key = getpass("Enter Onyphe API key: ")
-    kwargs = dict(
-        api_key=api_key,
-        proxy_scheme='http',
-        proxy_host='squid.domain.tld',
-        proxy_port=3128,
+    proxy = OnypheAPIClientProxy(
+        scheme='http', host='squid.domain.tld', port=3128
     )
-    async with OnypheAPIClientSession(**kwargs) as client:
-        async for _, result in client.export(oql):
-            print(dumps(result).decode())
+    async with client_session(api_key) as client:
+        api_client = OnypheAPIClient(client=client, proxy=proxy)
+        async for _, result in api_client.export(oql):
+            print(dumps(result))
 
 if __name__ == '__main__':
     run(main())
@@ -86,18 +84,18 @@ if __name__ == '__main__':
 ### Get a specific result page
 
 ```python
+from json import dumps
 from asyncio import run
 from getpass import getpass
-from orjson import dumps
-from aionyphe import OnypheAPIClientSession
+from aionyphe import OnypheAPIClient, client_session
 
 async def main():
     oql = 'category:datascan domain:google.com'
     api_key = getpass("Enter Onyphe API key: ")
-    kwargs = dict(api_key=api_key)
-    async with OnypheAPIClientSession(**kwargs) as client:
-        async for _, result in client.search(oql, page=2):
-            print(dumps(result).decode())
+    async with client_session(api_key) as client:
+        api_client = OnypheAPIClient(client=client)
+        async for _, result in api_client.search(oql, page=2):
+            print(dumps(result))
 
 if __name__ == '__main__':
     run(main())
@@ -106,18 +104,18 @@ if __name__ == '__main__':
 ### A helper to iterate over pages
 
 ```python
+from json import dumps
 from asyncio import run
 from getpass import getpass
-from orjson import dumps
-from aionyphe import OnypheAPIClientSession, iter_pages
+from aionyphe import OnypheAPIClient, client_session, iter_pages
 
 async def main():
     oql = 'category:datascan domain:google.com'
     api_key = getpass("Enter Onyphe API key: ")
-    kwargs = dict(api_key=api_key)
-    async with OnypheAPIClientSession(**kwargs) as client:
-        async for _, result in iter_pages(client.search, [oql], 2, 4):
-            print(dumps(result).decode())
+    async with client_session(api_key) as client:
+        api_client = OnypheAPIClient(client=client)
+        async for _, result in iter_pages(api_client.search, [oql], 2, 4):
+            print(dumps(result))
 
 if __name__ == '__main__':
     run(main())
