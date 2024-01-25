@@ -268,7 +268,7 @@ class OnypheAPIClient:
                 request_kwargs['ssl'] = self.ssl
             if self.proxy.is_valid:
                 LOGGER.info("aionyphe api client using proxy: %s", self.proxy)
-                request_kwargs['proxy'] = self.proxy.url
+                request_kwargs['proxy'] = str(self.proxy.url)
                 request_kwargs['proxy_headers'] = self.proxy.headers
             setattr(self, '__request_kwargs', request_kwargs)
         return getattr(self, '__request_kwargs')
