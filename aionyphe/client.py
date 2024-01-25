@@ -195,6 +195,7 @@ class OnypheAPIClientProxy:
         """Determine if proxy is valid or not"""
         return self.scheme and self.host
 
+    @property
     def url(self):
         """Proxy url with credentials"""
         return URL.build(
