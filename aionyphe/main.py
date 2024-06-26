@@ -1,5 +1,6 @@
 """aionyphe command line tool
 """
+
 # import and setup uvloop when installed
 # (linux and darwin platforms only)
 try:

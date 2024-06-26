@@ -1,5 +1,6 @@
 """aionyphe enumerations
 """
+
 from enum import Enum
 
 

@@ -1,5 +1,6 @@
 """aionyphe config
 """
+
 from json import loads, JSONDecodeError
 from pathlib import Path
 from .logging import get_logger

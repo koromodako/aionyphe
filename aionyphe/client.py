@@ -1,5 +1,6 @@
 """Onyphe asynchronous client
 """
+
 from ssl import SSLContext
 from copy import deepcopy
 from json import loads, JSONDecodeError

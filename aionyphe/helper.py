@@ -1,5 +1,6 @@
 """aionyphe helper
 """
+
 from typing import Optional, Any
 from .client import AsyncAPIResultIterator
 from .logging import get_logger

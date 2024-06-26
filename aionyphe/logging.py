@@ -1,5 +1,6 @@
 """aionyphe logging module
 """
+
 from logging import basicConfig, getLogger, Logger
 from rich.console import Console
 from rich.logging import RichHandler
