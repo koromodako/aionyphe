@@ -1,6 +1,6 @@
 """aionyphe helper
 """
-import typing as t
+from typing import Optional, Any
 from .client import AsyncAPIResultIterator
 from .logging import get_logger
 
@@ -10,9 +10,9 @@ LOGGER = get_logger('helper')
 
 async def iter_pages(
     afunc: AsyncAPIResultIterator,
-    args: t.List[t.Any],
+    args: list[Any],
     first: int = 1,
-    last: t.Optional[int] = None,
+    last: Optional[int] = None,
 ) -> AsyncAPIResultIterator:
     """Iterate through pages"""
     current = first

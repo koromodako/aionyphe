@@ -9,9 +9,10 @@ try:
     set_event_loop_policy(EventLoopPolicy())
 except ImportError:
     pass
+finally:
+    from asyncio import run, sleep
 # cross-platform imports
-from json import loads, dumps
-from asyncio import run, sleep
+from json import dumps
 from pathlib import Path
 from getpass import getpass
 from argparse import ArgumentParser
@@ -20,7 +21,6 @@ from . import (
     client_session,
     OnypheAPIClient,
     OnypheAPIClientProxy,
-    OnypheAPIClientRateLimiting,
     OnypheSummaryType,
     OnypheCategory,
     OnypheAPIError,

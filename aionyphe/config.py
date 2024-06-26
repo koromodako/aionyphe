@@ -11,11 +11,11 @@ LOGGER = get_logger('config')
 def load_config():
     """Load configuration file"""
     filepath = Path.home() / '.aionyphe'
-    if filepath.is_file():
-        data = filepath.read_text(encoding='utf-8')
-        try:
-            config = loads(data)
-        except JSONDecodeError:
-            LOGGER.exception("failed to load configuration file!")
-            return {}
-    return config
+    if not filepath.is_file():
+        return {}
+    data = filepath.read_text(encoding='utf-8')
+    try:
+        return loads(data)
+    except JSONDecodeError:
+        LOGGER.exception("failed to load configuration file!")
+        return {}
