@@ -4,7 +4,6 @@
 from ssl import SSLContext
 from copy import deepcopy
 from json import loads, JSONDecodeError
-from typing import Optional, Union
 from pathlib import Path
 from asyncio import Semaphore
 from warnings import warn
@@ -56,7 +55,7 @@ DEFAULT_RATE_LIMITS = {
     OnypheFeature.EXPORT: 1,
 }
 
-AsyncAPIResultIterator = AsyncIterator[tuple[Optional[dict], dict]]
+AsyncAPIResultIterator = AsyncIterator[tuple[dict | None, dict]]
 
 
 async def _parse_json_resp(response: ClientResponse) -> AsyncAPIResultIterator:
@@ -135,7 +134,7 @@ async def _handle_resp(
         raise OnypheAPIError from exc
 
 
-def _select_data(filepath: Optional[Path], data: Optional[bytes]):
+def _select_data(filepath: Path | None, data: bytes | None):
     if data:
         return data
     if filepath:
@@ -149,11 +148,11 @@ def client_session(
     api_key: str,
     scheme: str = DEFAULT_SCHEME,
     host: str = DEFAULT_HOST,
-    port: Optional[int] = DEFAULT_PORT,
-    total: Optional[int] = None,
-    connect: Optional[int] = None,
-    sock_read: Optional[int] = None,
-    sock_connect: Optional[int] = None,
+    port: int | None = DEFAULT_PORT,
+    total: int | None = None,
+    connect: int | None = None,
+    sock_read: int | None = None,
+    sock_connect: int | None = None,
 ):
     """Create Onyphe API client underlying HTTP client session"""
     base_url = URL.build(scheme=scheme, host=host, port=port)
@@ -178,12 +177,12 @@ def client_session(
 class OnypheAPIClientProxy:
     """Onyphe API client HTTP proxy information"""
 
-    scheme: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    headers: Optional[dict[str, str]] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
+    scheme: str | None = None
+    host: str | None = None
+    port: int | None = None
+    headers: dict[str, str] | None = None
+    username: str | None = None
+    password: str | None = None
 
     def __str__(self):
         return str(
@@ -225,7 +224,7 @@ class OnypheAPIClientRateLimiting:
     """Onyphe API client"""
 
     enabled: bool = True
-    rate_limits: Optional[dict[OnypheFeature, int]] = None
+    rate_limits: dict[OnypheFeature, int] | None = None
 
     @property
     def semaphores(self):
@@ -253,7 +252,7 @@ class OnypheAPIClient:
 
     client: ClientSession
     version: str = DEFAULT_VERSION
-    ssl: Optional[SSLContext] = None
+    ssl: SSLContext | None = None
     proxy: OnypheAPIClientProxy = field(default_factory=OnypheAPIClientProxy)
     rate_limiting: OnypheAPIClientRateLimiting = field(
         default_factory=OnypheAPIClientRateLimiting
@@ -282,7 +281,7 @@ class OnypheAPIClient:
 
     def __semaphore(
         self, feature: OnypheFeature
-    ) -> Union[Semaphore, _SemaphoreStub]:
+    ) -> Semaphore | _SemaphoreStub:
         """
         Get semaphore for given feature
         """
@@ -292,7 +291,7 @@ class OnypheAPIClient:
         self,
         url: str,
         parse_resp: AsyncAPIResultIterator,
-        page: Optional[int] = None,
+        page: int | None = None,
     ) -> AsyncAPIResultIterator:
         """
         GET request wrapper
@@ -310,8 +309,8 @@ class OnypheAPIClient:
         self,
         url: str,
         parse_resp: AsyncAPIResultIterator,
-        data: Optional[bytes] = None,
-        json: Optional[dict] = None,
+        data: bytes | None = None,
+        json: dict | None = None,
     ) -> AsyncAPIResultIterator:
         """
         POST request wrapper
@@ -494,8 +493,8 @@ class OnypheAPIClient:
     async def bulk_summary(
         self,
         summary_type: OnypheSummaryType,
-        filepath: Optional[Path] = None,
-        data: Optional[bytes] = None,
+        filepath: Path | None = None,
+        data: bytes | None = None,
     ) -> AsyncAPIResultIterator:
         """
         Results about all categories of information we have for the given
@@ -516,8 +515,8 @@ class OnypheAPIClient:
     async def bulk_simple_ip(
         self,
         category: OnypheCategory,
-        filepath: Optional[Path] = None,
-        data: Optional[bytes] = None,
+        filepath: Path | None = None,
+        data: bytes | None = None,
     ) -> AsyncAPIResultIterator:
         """
         Results about category of information we have for the given IPv{4,6}
@@ -539,8 +538,8 @@ class OnypheAPIClient:
     async def bulk_simple_best_ip(
         self,
         category: OnypheCategory,
-        filepath: Optional[Path] = None,
-        data: Optional[bytes] = None,
+        filepath: Path | None = None,
+        data: bytes | None = None,
     ) -> AsyncAPIResultIterator:
         """
         Result about geoloc category of information we have for the given
@@ -565,8 +564,8 @@ class OnypheAPIClient:
     async def bulk_discovery_asset(
         self,
         category: OnypheCategory,
-        filepath: Optional[Path] = None,
-        data: Optional[bytes] = None,
+        filepath: Path | None = None,
+        data: bytes | None = None,
     ) -> AsyncAPIResultIterator:
         """
         It allows to execute bulk searches by leveraging the best from ONYPHE
