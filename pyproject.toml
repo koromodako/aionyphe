@@ -18,13 +18,12 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Topic :: Security",
     "Topic :: Utilities",
 ]
 dependencies = [
-    "rich~=13.6",
-    "aiodns~=3.1",
-    "aiohttp~=3.8",
+    "rich~=13.9",
+    "aiodns~=3.2",
+    "aiohttp~=3.10",
 ]
 
 
@@ -39,7 +38,7 @@ aionyphe = "aionyphe.main:app"
 
 
 [build-system]
-requires = ["setuptools>=68", "setuptools_scm>=8.0", "wheel"]
+requires = ["setuptools>=75", "setuptools_scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 
