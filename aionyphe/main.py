@@ -4,8 +4,9 @@
 # import and setup uvloop when installed
 # (linux and darwin platforms only)
 try:
-    from uvloop import EventLoopPolicy
     from asyncio import set_event_loop_policy
+
+    from uvloop import EventLoopPolicy
 
     set_event_loop_policy(EventLoopPolicy())
 except ImportError:
@@ -13,24 +14,24 @@ except ImportError:
 finally:
     from asyncio import run, sleep
 # cross-platform imports
+from argparse import ArgumentParser
+from getpass import getpass
 from json import dumps
 from pathlib import Path
-from getpass import getpass
-from argparse import ArgumentParser
+
 from . import (
-    iter_pages,
-    client_session,
     OnypheAPIClient,
     OnypheAPIClientProxy,
-    OnypheSummaryType,
-    OnypheCategory,
     OnypheAPIError,
+    OnypheCategory,
+    OnypheSummaryType,
+    client_session,
+    iter_pages,
 )
-from .config import load_config
-from .client import BEST_CATEGORIES
-from .logging import get_logger
 from .__version__ import version
-
+from .client import BEST_CATEGORIES
+from .config import load_config
+from .logging import get_logger
 
 LOGGER = get_logger('main')
 SCHEMES = {'https', 'http'}

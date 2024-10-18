@@ -1,29 +1,30 @@
 """Onyphe asynchronous client
 """
 
-from ssl import SSLContext
-from copy import deepcopy
-from json import loads, JSONDecodeError
-from pathlib import Path
 from asyncio import Semaphore
-from warnings import warn
-from dataclasses import dataclass, field
-from urllib.parse import quote
 from collections.abc import AsyncIterator
-from yarl import URL
+from copy import deepcopy
+from dataclasses import dataclass, field
+from json import JSONDecodeError, loads
+from pathlib import Path
+from ssl import SSLContext
+from urllib.parse import quote
+from warnings import warn
+
 from aiohttp.client import (
+    ClientProxyConnectionError,
+    ClientResponse,
+    ClientResponseError,
     ClientSession,
     ClientTimeout,
-    ClientResponse,
     ContentTypeError,
-    ClientResponseError,
-    ClientProxyConnectionError,
 )
-from .enum import OnypheFeature, OnypheCategory, OnypheSummaryType
-from .logging import get_logger
-from .exception import OnypheAPIError
-from .__version__ import version as VERSION
+from yarl import URL
 
+from .__version__ import version as VERSION
+from .enum import OnypheCategory, OnypheFeature, OnypheSummaryType
+from .exception import OnypheAPIError
+from .logging import get_logger
 
 LOGGER = get_logger('client')
 DEFAULT_HOST = 'www.onyphe.io'

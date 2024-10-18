@@ -1,10 +1,10 @@
 """aionyphe config
 """
 
-from json import loads, JSONDecodeError
+from json import JSONDecodeError, loads
 from pathlib import Path
-from .logging import get_logger
 
+from .logging import get_logger
 
 LOGGER = get_logger('config')
 

@@ -2,9 +2,9 @@
 """
 
 from typing import Any
+
 from .client import AsyncAPIResultIterator
 from .logging import get_logger
-
 
 LOGGER = get_logger('helper')
 
