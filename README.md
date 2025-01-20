@@ -24,7 +24,7 @@ pip install uvloop
 ## Testing
 
 There is no automated testing for now. Manual testing was performed using
-Python 3.10.12 on Ubuntu 22.04. Assume all Python versions above 3.10 are supported.
+Python 3.12.3 on Ubuntu 24.04. Assume all Python versions above 3.10 are supported.
 
 ## Documentation
 
@@ -47,7 +47,7 @@ from getpass import getpass
 from aionyphe import OnypheAPIClient, client_session
 
 async def main():
-    oql = 'category:synscan ip:8.8.8.8'
+    oql = 'category:datascan domain:google.com'
     api_key = getpass("Enter Onyphe API key: ")
     async with client_session(api_key) as client:
         api_client = OnypheAPIClient(client=client)
@@ -67,7 +67,7 @@ from getpass import getpass
 from aionyphe import OnypheAPIClient, OnypheAPIClientProxy, client_session
 
 async def main():
-    oql = 'category:synscan ip:8.8.8.8'
+    oql = 'category:datascan domain:google.com'
     api_key = getpass("Enter Onyphe API key: ")
     proxy = OnypheAPIClientProxy(
         scheme='http', host='squid.domain.tld', port=3128
@@ -135,7 +135,7 @@ aionyphe -h
 # get 'export' command usage
 aionyphe export -h
 # export data for given oql query
-aionyphe export 'category:synscan ip:8.8.8.8'
+aionyphe export 'category:datascan domain:google.com'
 # get your public ip address
 aionyphe myip
 # get information about your user account

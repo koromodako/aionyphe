@@ -33,7 +33,7 @@ class OnypheCategory(Enum):
     GEOLOC = 'geoloc'
     INETNUM = 'inetnum'
     SNIFFER = 'sniffer'
-#    SYNSCAN = 'synscan'  # deprecated in january 2025
+    #    SYNSCAN = 'synscan'  # deprecated in january 2025
     TOPSITE = 'topsite'
     DATASCAN = 'datascan'
     DATASHOT = 'datashot'
