@@ -1,7 +1,8 @@
 [project]
 name = "aionyphe"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["onyphe", "api", "cli", "asyncio"]
 description = "Asynchronous Onyphe API and CLI"
 requires-python = ">=3.10"
@@ -13,7 +14,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -38,7 +38,7 @@ aionyphe = "aionyphe.main:app"
 
 
 [build-system]
-requires = ["setuptools>=75", "setuptools_scm>=8", "wheel"]
+requires = ["setuptools>=79", "setuptools_scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 
