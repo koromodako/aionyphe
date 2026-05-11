@@ -21,7 +21,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "rich~=14.2",
+    "rich~=15.0",
     "aiodns~=3.5",
     "aiohttp~=3.13",
 ]
