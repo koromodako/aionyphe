@@ -1,5 +1,4 @@
-"""aionyphe logging module
-"""
+"""aionyphe logging module"""
 
 from logging import Logger, basicConfig, getLogger
 

@@ -1,5 +1,4 @@
-"""Onyphe asynchronous client
-"""
+"""Onyphe asynchronous client"""
 
 from asyncio import Semaphore
 from collections.abc import AsyncIterator

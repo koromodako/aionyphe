@@ -1,5 +1,4 @@
-"""aionyphe enumerations
-"""
+"""aionyphe enumerations"""
 
 from enum import Enum
 

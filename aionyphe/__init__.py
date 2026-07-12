@@ -1,5 +1,4 @@
-"""aionyphe
-"""
+"""aionyphe"""
 
 from .client import (
     OnypheAPIClient,

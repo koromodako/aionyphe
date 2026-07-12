@@ -1,5 +1,4 @@
-"""aionyphe exceptions
-"""
+"""aionyphe exceptions"""
 
 
 class OnypheAPIError(Exception):

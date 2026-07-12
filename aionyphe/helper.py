@@ -1,5 +1,4 @@
-"""aionyphe helper
-"""
+"""aionyphe helper"""
 
 from typing import Any
 

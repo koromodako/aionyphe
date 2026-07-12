@@ -1,5 +1,4 @@
-"""aionyphe config
-"""
+"""aionyphe config"""
 
 from json import JSONDecodeError, loads
 from pathlib import Path
