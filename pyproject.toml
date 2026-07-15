@@ -56,5 +56,6 @@ include = ["pyproject.toml", "aionyphe/**/*.py"]
 exclude = ["aionyphe/__version__.py"]
 line-length = 79
 
+
 [tool.ruff.format]
 quote-style = "preserve"
